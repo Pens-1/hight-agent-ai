@@ -1,0 +1,168 @@
+# プロジェクト: 単位取得特化型AIエージェント
+
+## 基本ルール
+- このプロジェクトは日本語で開発されています
+- コメントとドキュメントは日本語で記述してください
+- 変数名・関数名・クラス名は英語を使用してください
+- **テストは必須**：新規機能や重要な修正には必ずテストを追加してください
+
+## 技術スタック
+
+### フロントエンド
+- React + Vite + TypeScript
+- Lint/Format: ESLint + Prettier
+- テスト: Vitest + React Testing Library
+- UI: Markdown表示（数式はKaTeX）
+
+### バックエンド
+- Python 3.11+ / FastAPI
+- Lint/Format: Ruff + Black
+- 型: pydantic v2（型ヒント必須）
+- テスト: pytest + pytest-asyncio + FastAPI TestClient
+
+### データベース
+- PostgreSQL + pgvector（ベクトル検索）
+- テーブル: documents, chunks, conversations
+
+### AI/ML
+- LLM: Ollama (Qwen3)
+- OCR: DeepSeek-OCR ラッパー（FastAPI）
+- 埋め込み: ベクトル検索（pgvector）
+
+### ワークフロー
+- n8n（非同期処理・資料アップロード）
+
+### インフラ
+- Docker / Docker Compose
+- ローカル完結（オフライン動作可）
+
+## コーディング規約
+
+### 共通
+- 早期return、深いネストを避ける
+- 例外の握りつぶし禁止
+- **テスト必須**（新規/重要修正）
+- エラーハンドリングを適切に実装してください
+
+### バックエンド (Python/FastAPI)
+- PEP 8 に準拠
+- 型ヒント（Type Hints）を必ず使用
+- pydantic v2 でバリデーション
+- 関数には docstring を記述（日本語）
+- 層構造: api/services/db/models/utils
+- テスト: pytest + pytest-asyncio
+
+### フロントエンド (TypeScript/React)
+- 命名: PascalCase(コンポーネント), camelCase(関数/変数)
+- ディレクトリ: components/hooks/services/types/styles
+- ESLint + Prettier でフォーマット
+- テスト: Vitest + React Testing Library
+
+## プロジェクト構造
+```
+backend/
+  app/
+    api/routes/     # APIエンドポイント
+    services/       # ビジネスロジック
+    db/            # データベース接続
+    models/        # データモデル（pydantic）
+    utils/         # ユーティリティ
+    config.py      # 設定ファイル
+  main.py          # アプリケーションエントリーポイント
+  tests/           # テストコード
+database/
+  init.sql         # データベース初期化スクリプト
+docs/              # 設計ドキュメント
+  app/            # アプリケーション設計
+  api/            # API設計
+  db/             # データベース設計
+  system/         # システム設計
+  infra/          # インフラ設計
+  devops/         # 開発運用設計
+```
+
+## API設計（docs/api/api_contract.md に準拠）
+- ベースURL: `http://localhost:8000/api`
+- 主要エンドポイント:
+  - `POST /api/ask_problem_image`: 画像質問（OCR → RAG → 解答生成）
+  - `POST /api/ask_problem_text`: テキスト質問
+  - `GET /api/documents`: 資料一覧取得
+  - `DELETE /api/documents/{document_id}`: 資料削除
+  - `GET /api/health`: ヘルスチェック
+- OpenAPI (Swagger) 仕様に準拠
+- レスポンスは適切なHTTPステータスコードを返す
+
+## データベース設計（docs/db/erd.md に準拠）
+- **documents**: 資料管理（id, filename, subject, status, file_size_bytes, mime_type）
+- **chunks**: テキストチャンク（id, document_id, content, chunk_index, embedding, metadata）
+- **conversations**: 会話履歴（id, session_id, question, answer, used_rag, referenced_chunks）
+- パラメータ化クエリ徹底（SQLインジェクション対策）
+
+## テスト戦略（docs/devops/testing.md に準拠）
+
+### 単体テスト
+- Backend: pytest + pytest-asyncio
+- Frontend: Vitest + React Testing Library
+- OCR Service: FastAPI TestClient
+
+### 結合テスト
+- API E2E（問題画像→解答）
+- DB操作（テストDB使用）
+
+### パフォーマンス目標
+- RAG検索: < 500ms
+- OCR: < 2s
+- 生成: < 10s
+
+### テスト必須ケース
+- 新規機能追加
+- 重要なバグ修正
+- APIエンドポイント変更
+- データベーススキーマ変更
+
+## セキュリティ（docs/system/security.md に準拠）
+
+### ファイルアップロード
+- 許可拡張子: .pdf, .png, .jpg, .jpeg
+- サイズ上限: 100MB
+- 大容量PDFは段階処理（ページ単位）
+
+### API
+- 初期は認証なし（ローカル前提）
+- 将来: Basic認証 or ローカルPIN
+- CORS: 開発は許可広め、本番相当はフロントのオリジン限定
+
+### データベース
+- パラメータ化クエリ徹底
+- 外部送信なし、ローカルDB保存のみ
+
+## 非機能要件（docs/system/non_functional.md に準拠）
+- ローカル完結（オフライン動作可）
+- レイテンシ目標:
+  - OCR: < 2s
+  - 検索: < 500ms
+  - 生成: < 10s（モデルに依存）
+- 拡張性: モデル差し替え容易（設定化）
+- クロスプラットフォーム: Windows/macOS/Linux（Docker推奨）
+
+## ブランチ戦略（docs/devops/branching.md に準拠）
+- **main**: 安定ブランチ
+- **feature/**: 機能追加
+- **fix/**: 不具合修正
+- **docs/**: ドキュメント変更
+- PRルール: 小さく出す、タイトルに種別と概要（feat:, fix:, docs:）
+
+## 開発方針
+- RESTful APIの設計原則に従う
+- セキュリティを考慮した実装
+- エラーメッセージは分かりやすく、デバッグしやすいものに
+- 環境変数は .env ファイルで管理
+- docs/ 配下の設計ドキュメントに準拠
+- **テストなしでのコミットは禁止**
+
+## 注意事項
+- 機密情報（パスワード、APIキーなど）をコードに直接記述しない
+- データベース接続は適切にプール
+- 外部への通信なし（ローカル完結）
+- テストカバレッジを維持・向上させる
+

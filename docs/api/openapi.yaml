@@ -1,0 +1,200 @@
+openapi: 3.0.3
+info:
+  title: hight-agent-ai API
+  version: 0.1.0
+servers:
+  - url: http://localhost:8000/api
+paths:
+  /ask_problem_image:
+    post:
+      summary: Ask by image
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                image:
+                  type: string
+                  format: binary
+                use_rag:
+                  type: boolean
+                  default: true
+                use_web_search:
+                  type: boolean
+                  default: false
+                session_id:
+                  type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  answer:
+                    type: string
+                  referenced_documents:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        document_id:
+                          type: integer
+                        filename:
+                          type: string
+                        subject:
+                          type: string
+                        chunk_content:
+                          type: string
+                  processing_time_ms:
+                    type: integer
+  /ask_problem_text:
+    post:
+      summary: Ask by text
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                question:
+                  type: string
+                use_rag:
+                  type: boolean
+                  default: true
+                use_web_search:
+                  type: boolean
+                  default: false
+                session_id:
+                  type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AskResponse'
+  /documents:
+    get:
+      summary: List documents
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [processing, completed, failed]
+        - in: query
+          name: subject
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 50
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  documents:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Document'
+                  total:
+                    type: integer
+  /documents/{document_id}:
+    delete:
+      summary: Delete a document
+      parameters:
+        - in: path
+          name: document_id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+  /health:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  services:
+                    type: object
+                    properties:
+                      database:
+                        type: string
+                      ollama:
+                        type: string
+                      ocr:
+                        type: string
+components:
+  schemas:
+    AskResponse:
+      type: object
+      properties:
+        answer:
+          type: string
+        referenced_documents:
+          type: array
+          items:
+            type: object
+            properties:
+              document_id:
+                type: integer
+              filename:
+                type: string
+              subject:
+                type: string
+              chunk_content:
+                type: string
+        processing_time_ms:
+          type: integer
+    Document:
+      type: object
+      properties:
+        id:
+          type: integer
+        filename:
+          type: string
+        subject:
+          type: string
+        status:
+          type: string
+          enum: [processing, completed, failed]
+        created_at:
+          type: string
+          format: date-time
+        chunk_count:
+          type: integer
+

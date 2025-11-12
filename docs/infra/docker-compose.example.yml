@@ -1,0 +1,110 @@
+version: '3.8'
+
+services:
+  postgres:
+    build: ./database
+    container_name: hight-ai-db
+    environment:
+      POSTGRES_DB: hight_ai
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docs/db/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: hight-ai-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    # GPU is optional; uncomment below if you have NVIDIA GPU with WSL2
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  ocr-service:
+    build: ./ocr-service
+    container_name: hight-ai-ocr
+    ports:
+      - "8080:8080"
+    environment:
+      - MODEL_PATH=${OCR_MODEL_PATH}
+    volumes:
+      - ./models:/models
+    depends_on:
+      - postgres
+
+  backend:
+    build: ./backend
+    container_name: hight-ai-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://admin:${DB_PASSWORD}@postgres:5432/hight_ai
+      - OLLAMA_URL=http://ollama:11434
+      - OCR_URL=http://ocr-service:8080
+      - OLLAMA_MODEL=${OLLAMA_MODEL}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL}
+    volumes:
+      - ./backend:/app
+      - upload_files:/app/uploads
+    depends_on:
+      - postgres
+      - ollama
+      - ocr-service
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: hight-ai-n8n
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD}
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=http://localhost:5678/
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./n8n/workflows:/home/node/.n8n/workflows
+    depends_on:
+      - postgres
+      - ollama
+      - ocr-service
+
+  frontend:
+    build: ./frontend
+    container_name: hight-ai-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+      - VITE_N8N_WEBHOOK_URL=http://localhost:5678/webhook/upload_document
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: npm run dev
+
+volumes:
+  postgres_data:
+  ollama_data:
+  n8n_data:
+  upload_files:
+
+
